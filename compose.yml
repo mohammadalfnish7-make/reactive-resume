@@ -5,11 +5,11 @@ services:
     image: postgres:latest
     restart: unless-stopped
     networks:
-      - data_network
+      - reactive_resume_network
     environment:
-      - POSTGRES_DB=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     networks:
-      - data_network
+      - reactive_resume_network
     volumes:
       - redis_data:/data
     healthcheck:
@@ -39,10 +39,10 @@ services:
     restart: unless-stopped
     command: server -s3 -filer -dir=/data -ip=0.0.0.0
     networks:
-      - storage_network
+      - reactive_resume_network
     environment:
-      - AWS_ACCESS_KEY_ID=seaweedfs
-      - AWS_SECRET_ACCESS_KEY=seaweedfs
+      AWS_ACCESS_KEY_ID: seaweedfs
+      AWS_SECRET_ACCESS_KEY: seaweedfs
     volumes:
       - seaweedfs_data:/data
     healthcheck:
@@ -55,6 +55,8 @@ services:
   seaweedfs_create_bucket:
     image: quay.io/minio/mc:latest
     restart: on-failure
+    networks:
+      - reactive_resume_network
     entrypoint: >
       /bin/sh -c "
         sleep 5;
@@ -62,8 +64,6 @@ services:
         mc mb --ignore-existing seaweedfs/reactive-resume;
         exit 0;
       "
-    networks:
-      - storage_network
     depends_on:
       seaweedfs:
         condition: service_healthy
@@ -73,8 +73,7 @@ services:
       context: .
       dockerfile: Dockerfile
     networks:
-      - data_network
-      - storage_network
+      - reactive_resume_network
     environment:
       APP_URL: ${COOLIFY_URL:-http://localhost:3000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
@@ -94,22 +93,8 @@ services:
       FLAG_DISABLE_IMAGE_PROCESSING: ${FLAG_DISABLE_IMAGE_PROCESSING:-false}
       FLAG_DISABLE_API_RATE_LIMIT: ${FLAG_DISABLE_API_RATE_LIMIT:-false}
       FLAG_SHOW_SPONSORS: ${FLAG_SHOW_SPONSORS:-false}
-      FLAG_ALLOW_UNSAFE_OAUTH_REDIRECT_URI: ${FLAG_ALLOW_UNSAFE_OAUTH_REDIRECT_URI:-false}
-      FLAG_ALLOW_UNSAFE_AI_BASE_URL: ${FLAG_ALLOW_UNSAFE_AI_BASE_URL:-false}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-Reactive Resume <noreply@rxresu.me>}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
-      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
     volumes:
-      - ./data:/app/data
+      - reactive_resume_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,3 +110,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  seaweedfs_data:
+  reactive_resume_data:
+
+networks:
+  reactive_resume_network:
+    driver: bridge
